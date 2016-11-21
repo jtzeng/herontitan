@@ -3,6 +3,7 @@ herontitan is an assembler for bootnecklad's "Titan" processor.
 """
 
 import sys
+import logging
 from opcodes import OPCODES, OPCODES_LEN
 
 REGISTERS = [
@@ -10,14 +11,13 @@ REGISTERS = [
     'RA', 'RB', 'RC', 'RD', 'RE', 'RF'
 ]
 
+LOG_FORMAT = '%(levelname)s: %(message)s'
+
+logging.basicConfig(format=LOG_FORMAT, level=logging.DEBUG)
+
 _labels = {}
 _address = 0
 _instructions = []
-
-
-# ???
-def debug(s):
-    print s
 
 
 # Resets the label/addr/insts state.
@@ -37,13 +37,13 @@ def get_reg(r):
 
 def add_label(label):
     global _address
-    debug('({}) Adding label: {}'.format(_address, label))
+    logging.debug('({}) Adding label: {}'.format(_address, label))
     _labels[label] = _address
 
 
 def conv_label(label):
     if _labels.has_key(label):
-        debug('Found label: {} => {}'.format(label, _labels[label]))
+        logging.debug('Found label: {} => {}'.format(label, _labels[label]))
         return _labels[label]
     return label
 
@@ -69,7 +69,7 @@ def add_nibbles(a, b):
 
 def add_byte(b):
     global _address
-    debug('({}) Adding byte: {}'.format(_address, format(b, '08b')))
+    logging.debug('({}) Adding byte: {}'.format(_address, format(b, '08b')))
     if b < 0 or b > 255:
         raise ValueError('byte is not in range: {}'.format(b))
     _instructions.append(b)
@@ -129,7 +129,7 @@ def parse_line(line, labels_only):
     if not tokens:
         return
 
-    debug('> {}'.format(line))
+    logging.debug('> {}'.format(line))
 
     mnem = tokens[0]
     args = tokens[1].split(',') if tokens[1:] else None
@@ -180,7 +180,7 @@ def parse_line(line, labels_only):
 
     # Ignore all labels during second-pass.
     if line.startswith('.') or line.endswith(':'):
-        debug('(Ignoring label on second pass.)')
+        logging.debug('(Ignoring label on second pass.)')
         return
 
     # Converts labels to their memory locations.
@@ -352,7 +352,7 @@ def insts_as_bin(insts):
 def parse_file(path):
     global _address
     reset()
-    debug('Parsing {}...'.format(path))
+    logging.debug('Parsing {}...'.format(path))
 
     with open(path, 'r') as f:
         lines = f.readlines()
@@ -362,7 +362,7 @@ def parse_file(path):
         parse_line(line, True)
 
     expected_size = _address
-    debug('Expected size: {}'.format(expected_size))
+    logging.debug('Expected size: {}'.format(expected_size))
 
     # Reset the address.
     _address = 0
@@ -376,15 +376,15 @@ def parse_file(path):
     # This probably shouldn't happen.
     assert expected_size == len(insts)
 
-    # debug(insts_as_chr(insts))
-    # debug(insts_as_bin(insts))
-    # debug(insts)
+    # logging.debug(insts_as_chr(insts))
+    # logging.debug(insts_as_bin(insts))
+    # logging.debug(insts)
 
     return insts
 
 
 if __name__ == '__main__':
     if not sys.argv[1:]:
-        debug('usage: {} path-to-source'.format(sys.argv[0]))
+        print 'usage: {} path-to-source'.format(sys.argv[0])
     else:
         print parse_file(sys.argv[1])
