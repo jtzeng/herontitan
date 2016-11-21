@@ -15,28 +15,6 @@ REGISTERS = [
 LOG_FORMAT = '%(levelname)s: %(message)s'
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    '-d', '--debug', action='store_const', dest='loglevel',
-    const=logging.DEBUG, default=logging.WARNING,
-    help='print all parsing steps'
-)
-parser.add_argument(
-    '-b', '--bin', action='store_true', dest='binary',
-    help='print result in binary format'
-)
-parser.add_argument(
-    '-t', '--text', action='store_true',
-    help='print result as human-readable binary text with \\n separators'
-)
-parser.add_argument(
-    'inputfile',
-    help='path to input source file'
-)
-
-cli_args = parser.parse_args()
-logging.basicConfig(format=LOG_FORMAT, level=cli_args.loglevel)
-
 _labels = {}
 _address = 0
 _instructions = []
@@ -403,6 +381,28 @@ def parse_file(path):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-d', '--debug', action='store_const', dest='loglevel',
+        const=logging.DEBUG, default=logging.WARNING,
+        help='print all parsing steps'
+    )
+    parser.add_argument(
+        '-b', '--bin', action='store_true', dest='binary',
+        help='print result in binary format'
+    )
+    parser.add_argument(
+        '-t', '--text', action='store_true',
+        help='print result as human-readable binary text with \\n separators'
+    )
+    parser.add_argument(
+        'inputfile',
+        help='path to input source file'
+    )
+
+    cli_args = parser.parse_args()
+    logging.basicConfig(format=LOG_FORMAT, level=cli_args.loglevel)
+
     insts = parse_file(cli_args.inputfile)
     if cli_args.binary:
         print insts_as_chr(insts)
