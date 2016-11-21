@@ -4,6 +4,7 @@ herontitan is an assembler for bootnecklad's "Titan" processor.
 
 import sys
 import logging
+import argparse
 from opcodes import OPCODES, OPCODES_LEN
 
 REGISTERS = [
@@ -13,7 +14,28 @@ REGISTERS = [
 
 LOG_FORMAT = '%(levelname)s: %(message)s'
 
-logging.basicConfig(format=LOG_FORMAT, level=logging.DEBUG)
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-d', '--debug', action='store_const', dest='loglevel',
+    const=logging.DEBUG, default=logging.WARNING,
+    help='print all parsing steps'
+)
+parser.add_argument(
+    '-b', '--bin', action='store_true', dest='binary',
+    help='print result in binary format'
+)
+parser.add_argument(
+    '-t', '--text', action='store_true',
+    help='print result as human-readable binary text with \\n separators'
+)
+parser.add_argument(
+    'inputfile',
+    help='path to input source file'
+)
+
+cli_args = parser.parse_args()
+logging.basicConfig(format=LOG_FORMAT, level=cli_args.loglevel)
 
 _labels = {}
 _address = 0
@@ -21,7 +43,7 @@ _instructions = []
 
 
 # Resets the label/addr/insts state.
-def reset():
+def reset_all():
     global _labels, _address, _instructions
     _labels = {}
     _address = 0
@@ -37,13 +59,13 @@ def get_reg(r):
 
 def add_label(label):
     global _address
-    logging.debug('({}) Adding label: {}'.format(_address, label))
+    logging.debug('(%s) Adding label: %s', _address, label)
     _labels[label] = _address
 
 
 def conv_label(label):
     if _labels.has_key(label):
-        logging.debug('Found label: {} => {}'.format(label, _labels[label]))
+        logging.debug('Found label: %s => %s', label, _labels[label])
         return _labels[label]
     return label
 
@@ -69,7 +91,7 @@ def add_nibbles(a, b):
 
 def add_byte(b):
     global _address
-    logging.debug('({}) Adding byte: {}'.format(_address, format(b, '08b')))
+    logging.debug('(%s) Adding byte: %s', _address, format(b, '08b'))
     if b < 0 or b > 255:
         raise ValueError('byte is not in range: {}'.format(b))
     _instructions.append(b)
@@ -129,7 +151,7 @@ def parse_line(line, labels_only):
     if not tokens:
         return
 
-    logging.debug('> {}'.format(line))
+    logging.debug('> %s', line)
 
     mnem = tokens[0]
     args = tokens[1].split(',') if tokens[1:] else None
@@ -176,7 +198,6 @@ def parse_line(line, labels_only):
 
         # Don't bother with the rest if we're only parsing labels.
         raise Exception('Undefined instruction: {}'.format(line))
-
 
     # Ignore all labels during second-pass.
     if line.startswith('.') or line.endswith(':'):
@@ -351,23 +372,25 @@ def insts_as_bin(insts):
 # Parse an assembly file and return a copy of the list of instructions.
 def parse_file(path):
     global _address
-    reset()
-    logging.debug('Parsing {}...'.format(path))
+    reset_all()
+    logging.debug('Opening %s...', path)
 
     with open(path, 'r') as f:
         lines = f.readlines()
 
     # Parse the labels and count the total opcodes size.
+    logging.debug('Parsing labels...')
     for line in lines:
         parse_line(line, True)
 
     expected_size = _address
-    logging.debug('Expected size: {}'.format(expected_size))
+    logging.debug('Expected size: %s', expected_size)
 
     # Reset the address.
     _address = 0
 
     # Parse the rest.
+    logging.debug('Parsing again...')
     for line in lines:
         parse_line(line, False)
 
@@ -376,15 +399,18 @@ def parse_file(path):
     # This probably shouldn't happen.
     assert expected_size == len(insts)
 
-    # logging.debug(insts_as_chr(insts))
-    # logging.debug(insts_as_bin(insts))
-    # logging.debug(insts)
-
     return insts
 
 
-if __name__ == '__main__':
-    if not sys.argv[1:]:
-        print 'usage: {} path-to-source'.format(sys.argv[0])
+def main():
+    insts = parse_file(cli_args.inputfile)
+    if cli_args.binary:
+        print insts_as_chr(insts)
+    elif cli_args.text:
+        print insts_as_bin(insts)
     else:
-        print parse_file(sys.argv[1])
+        print insts
+
+
+if __name__ == '__main__':
+    main()
