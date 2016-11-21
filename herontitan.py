@@ -1,134 +1,14 @@
 """
 herontitan is an assembler for bootnecklad's "Titan" processor.
 """
+
 import sys
+from opcodes import OPCODES, OPCODES_LEN
 
 REGISTERS = [
     'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9',
     'RA', 'RB', 'RC', 'RD', 'RE', 'RF'
 ]
-
-OPCODES = {
-    # CPU CTRL
-    'NOP': [0b0000, 0b0000], # done
-    'HLT': [0b0000, 0b0001], # done
-
-    # Interrupt/Exception
-    'INT': [0b0000, 0b0010], # done
-    'RTE': [0b0000, 0b0011], # done
-
-    # Arithmetic
-    'ADD': [0b0001, 0b0000], # done
-    'ADC': [0b0001, 0b0001], # done
-    'SUB': [0b0001, 0b0010], # done
-    'AND': [0b0001, 0b0011], # done
-    'IOR': [0b0001, 0b0100], # done
-    'XOR': [0b0001, 0b0101], # done
-    'NOT': [0b0001, 0b0110], # done
-    'SHR': [0b0001, 0b0111], # done
-    'INC': [0b0001, 0b1000], # done
-    'DEC': [0b0001, 0b1001], # done
-
-    # Data stack
-    'PSH': [0b0010], # done
-    'POP': [0b0011], # done
-    'PEK': [0b0100], # done
-
-    # Return stack
-    'PSR': [0b0101], # done
-    'PPR': [0b0110], # done
-    'PKR': [0b0111], # done
-
-    # Register operations
-    'CLR': [0b1000], # done
-    'MOV': [0b1001, 0b0000], # done
-    'LDC': [0b1010], # done
-
-    # Jumps
-    'JMP': [0b1011, 0b0000], # done
-    'JMI': [0b1011, 0b0001], # done
-    'JMR': [0b1011, 0b0010], # done
-    'JRA': [0b1011, 0b0011], # done
-    'JMO': [0b1011, 0b0100], # done
-    'JMZ': [0b1011, 0b0101], # done
-    'JMS': [0b1011, 0b0110], # done
-    'JMC': [0b1011, 0b0111], # done
-    'JSR': [0b1011, 0b1000], # done
-    'RSB': [0b1011, 0b1001], # done
-
-    # Load from memory
-    'LDM': [0b1100, 0b0000], # done
-    'LDR': [0b1100, 0b0001], # done
-    'LRA': [0b1100, 0b0010], # done
-    'LMO': [0b1100, 0b0011], # done
-
-    # Store to memory
-    'STM': [0b1101, 0b0000], # done
-    'STR': [0b1101, 0b0001], # done
-    'SRA': [0b1101, 0b0010], # done
-    'SMO': [0b1101, 0b0011], # done
-}
-
-OPCODES_LEN = {
-    # CPU CTRL
-    'NOP': 1,
-    'HLT': 1,
-
-    # Interrupt/Exception
-    'INT': 2,
-    'RTE': 1,
-
-    # Arithmetic
-    'ADD': 2,
-    'ADC': 2,
-    'SUB': 2,
-    'AND': 2,
-    'IOR': 2,
-    'XOR': 2,
-    'NOT': 2,
-    'SHR': 2,
-    'INC': 2,
-    'DEC': 2,
-
-    # Data stack
-    'PSH': 1,
-    'POP': 1,
-    'PEK': 1,
-
-    # Return stack
-    'PSR': 1,
-    'PPR': 1,
-    'PKR': 1,
-
-    # Register operations
-    'CLR': 1,
-    'MOV': 2,
-    'LDC': 2,
-
-    # Jumps
-    'JMP': 3,
-    'JMI': 3,
-    'JMR': 2,
-    'JRA': 2,
-    'JMO': 4,
-    'JMZ': 3,
-    'JMS': 3,
-    'JMC': 3,
-    'JSR': 3,
-    'RSB': 1,
-
-    # Load from memory
-    'LDM': 4,
-    'LDR': 3,
-    'LRA': 3,
-    'LMO': 5,
-
-    # Store to memory
-    'STM': 4,
-    'STR': 3,
-    'SRA': 3,
-    'SMO': 5,
-}
 
 _labels = {}
 _address = 0
@@ -146,6 +26,13 @@ def reset():
     _labels = {}
     _address = 0
     _instructions = []
+
+
+def get_reg(r):
+    try:
+        return REGISTERS.index(r)
+    except ValueError:
+        raise Exception('Invalid register: {}'.format(r))
 
 
 def add_label(label):
@@ -314,14 +201,14 @@ def parse_line(line, labels_only):
         return
 
     if mnem in ['ADD', 'ADC', 'SUB', 'AND', 'IOR', 'XOR', 'MOV']:
-        rs = REGISTERS.index(args[0])
-        rd = REGISTERS.index(args[1])
+        rs = get_reg(args[0])
+        rd = get_reg(args[1])
         add_nibbles(*OPCODES[mnem])
         add_nibbles(rs, rd)
         return
 
     if mnem in ['NOT', 'SHR', 'INC', 'DEC']:
-        rs = REGISTERS.index(args[0])
+        rs = get_reg(args[0])
         # Unused?
         rd = 0
         add_nibbles(*OPCODES[mnem])
@@ -329,13 +216,13 @@ def parse_line(line, labels_only):
         return
 
     if mnem in ['PSH', 'POP', 'PEK', 'PSR', 'PPR', 'PKR', 'CLR']:
-        r = REGISTERS.index(args[0])
+        r = get_reg(args[0])
         add_nibbles(OPCODES[mnem][0], r)
         return
 
     if mnem == 'LDC':
         byte = maybe_parse_hex(args[0])
-        rd = REGISTERS.index(args[1])
+        rd = get_reg(args[1])
         add_nibbles(OPCODES[mnem][0], rd)
         add_byte(byte)
         return
@@ -351,15 +238,15 @@ def parse_line(line, labels_only):
         return
 
     if mnem in ['JMR', 'JRA']:
-        rh = REGISTERS.index(args[0])
-        rl = REGISTERS.index(args[1])
+        rh = get_reg(args[0])
+        rl = get_reg(args[1])
         add_nibbles(*OPCODES[mnem])
         add_nibbles(rh, rl)
         return
 
     if mnem == 'JMO':
-        rh = REGISTERS.index(args[0])
-        rl = REGISTERS.index(args[1])
+        rh = get_reg(args[0])
+        rl = get_reg(args[1])
         short = maybe_parse_hex(args[2])
 
         addrh, addrl = short_to_bytes(short)
@@ -372,7 +259,7 @@ def parse_line(line, labels_only):
 
     if mnem == 'LDM':
         short = maybe_parse_hex(args[0])
-        rd = REGISTERS.index(args[1])
+        rd = get_reg(args[1])
 
         addrh, addrl = short_to_bytes(short)
 
@@ -384,9 +271,9 @@ def parse_line(line, labels_only):
 
     # BROKEN
     if mnem in ['LDR', 'LRA']:
-        rh = REGISTERS.index(args[0])
-        rl = REGISTERS.index(args[1])
-        rd = REGISTERS.index(args[2])
+        rh = get_reg(args[0])
+        rl = get_reg(args[1])
+        rd = get_reg(args[2])
 
         add_nibbles(*OPCODES[mnem])
         add_nibbles(0b0000, rd)
@@ -395,10 +282,10 @@ def parse_line(line, labels_only):
 
     # BROKEN
     if mnem == 'LMO':
-        rh = REGISTERS.index(args[0])
-        rl = REGISTERS.index(args[1])
+        rh = get_reg(args[0])
+        rl = get_reg(args[1])
         short = maybe_parse_hex(args[2])
-        rd = REGISTERS.index(args[3])
+        rd = get_reg(args[3])
 
         addrh, addrl = short_to_bytes(short)
 
@@ -410,7 +297,7 @@ def parse_line(line, labels_only):
         return
 
     if mnem == 'STM':
-        rs = REGISTERS.index(args[0])
+        rs = get_reg(args[0])
         short = maybe_parse_hex(args[1])
 
         addrh, addrl = short_to_bytes(short)
@@ -423,9 +310,9 @@ def parse_line(line, labels_only):
 
     # BROKEN
     if mnem in ['STR', 'SRA']:
-        rs = REGISTERS.index(args[0])
-        rh = REGISTERS.index(args[1])
-        rl = REGISTERS.index(args[2])
+        rs = get_reg(args[0])
+        rh = get_reg(args[1])
+        rl = get_reg(args[2])
 
         add_nibbles(*OPCODES[mnem])
         add_nibbles(rs, 0b0000)
@@ -434,9 +321,9 @@ def parse_line(line, labels_only):
 
     # BROKEN
     if mnem == 'SMO':
-        rs = REGISTERS.index(args[0])
-        rh = REGISTERS.index(args[1])
-        rl = REGISTERS.index(args[2])
+        rs = get_reg(args[0])
+        rh = get_reg(args[1])
+        rl = get_reg(args[2])
         short = maybe_parse_hex(args[3])
 
         addrh, addrl = short_to_bytes(short)
