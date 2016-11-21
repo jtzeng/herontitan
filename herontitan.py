@@ -69,6 +69,67 @@ OPCODES = {
     'SMO': [0b1101, 0b0011], # done
 }
 
+OPCODES_LEN = {
+    # CPU CTRL
+    'NOP': 1,
+    'HLT': 1,
+
+    # Interrupt/Exception
+    'INT': 2,
+    'RTE': 1,
+
+    # Arithmetic
+    'ADD': 2,
+    'ADC': 2,
+    'SUB': 2,
+    'AND': 2,
+    'IOR': 2,
+    'XOR': 2,
+    'NOT': 2,
+    'SHR': 2,
+    'INC': 2,
+    'DEC': 2,
+
+    # Data stack
+    'PSH': 1,
+    'POP': 1,
+    'PEK': 1,
+
+    # Return stack
+    'PSR': 1,
+    'PPR': 1,
+    'PKR': 1,
+
+    # Register operations
+    'CLR': 1,
+    'MOV': 2,
+    'LDC': 2,
+
+    # Jumps
+    'JMP': 3,
+    'JMI': 3,
+    'JMR': 2,
+    'JRA': 2,
+    'JMO': 4,
+    'JMZ': 3,
+    'JMS': 3,
+    'JMC': 3,
+    'JSR': 3,
+    'RSB': 1,
+
+    # Load from memory
+    'LDM': 4,
+    'LDR': 3,
+    'LRA': 3,
+    'LMO': 5,
+
+    # Store to memory
+    'STM': 4,
+    'STR': 3,
+    'SRA': 3,
+    'SMO': 5,
+}
+
 _labels = {}
 _address = 0
 _instructions = []
@@ -168,49 +229,72 @@ def strip_quotes(s):
     return s[1:-1]
 
 
-def parse_line(line):
+def parse_line(line, labels_only):
+    global _address
+
+    # Remove comments.
+    line = line.split(';')[0]
+
+    # Remove whitespace.
+    line = line.strip()
+
     tokens = line.split()
     if not tokens:
         return
 
     debug('> {}'.format(line))
 
-    if tokens[0].endswith(':'):
-        label = tokens[0][:-1]
-        add_label(label)
-        return
-
     mnem = tokens[0]
     args = tokens[1].split(',') if tokens[1:] else None
 
-    # Process data.
+    if labels_only:
+        # Process data.
 
-    if mnem == '.BYTE':
-        label = tokens[1]
-        value = maybe_parse_hex(tokens[2])
-        add_byte_label(label, value)
+        if mnem == '.BYTE':
+            label = tokens[1]
+            value = maybe_parse_hex(tokens[2])
+            add_byte_label(label, value)
+            return
+
+        if mnem == '.WORD':
+            label = tokens[1]
+            value = maybe_parse_hex(tokens[2])
+            add_word(label, value)
+            return
+
+        if mnem == '.DATA':
+            label = tokens[1]
+            add_data(label, map(maybe_parse_hex, tokens[2:]))
+            return
+
+        if mnem == '.RAW':
+            add_raw(map(maybe_parse_hex, tokens[1:]))
+            return
+
+        if mnem == '.ASCIZ':
+            label = tokens[1]
+            add_string(label, ' '.join(line.split(' ')[2:]))
+            return
+
+        # Process labels.
+        if line.endswith(':'):
+            label = line[:-1]
+            add_label(label)
+            return
+
+        if mnem in OPCODES_LEN:
+            sz = OPCODES_LEN[mnem]
+            _address += sz
+            return
+
+        # Don't bother with the rest if we're only parsing labels.
+        raise Exception('Undefined instruction: {}'.format(line))
+
+
+    # Ignore all labels during second-pass.
+    if line.startswith('.') or line.endswith(':'):
+        debug('(Ignoring label on second pass.)')
         return
-
-    if mnem == '.WORD':
-        label = tokens[1]
-        value = maybe_parse_hex(tokens[2])
-        add_word(label, value)
-        return
-
-    if mnem == '.DATA':
-        label = tokens[1]
-        add_data(label, map(maybe_parse_hex, tokens[2:]))
-        return
-
-    if mnem == '.RAW':
-        add_raw(map(maybe_parse_hex, tokens[1:]))
-        return
-
-    if mnem == '.ASCIZ':
-        label = tokens[1]
-        add_string(label, ' '.join(line.split(' ')[2:]))
-        return
-
 
     # Converts labels to their memory locations.
     if args:
@@ -364,7 +448,9 @@ def parse_line(line):
         add_byte(addrl)
         return
 
-    debug('Undefined instruction: {}'.format(line))
+    # Any 'undefined' instruction errors should probably be all
+    # caught during the first-pass parsing.
+    raise Exception('Undefined instruction?: {}'.format(line))
 
 
 def insts_as_chr(insts):
@@ -377,26 +463,35 @@ def insts_as_bin(insts):
 
 # Parse an assembly file and return a copy of the list of instructions.
 def parse_file(path):
+    global _address
     reset()
     debug('Parsing {}...'.format(path))
 
     with open(path, 'r') as f:
         lines = f.readlines()
 
+    # Parse the labels and count the total opcodes size.
     for line in lines:
-        # Remove comments.
-        line = line.split(';')[0]
+        parse_line(line, True)
 
-        # Remove whitespace.
-        line = line.strip()
+    expected_size = _address
+    debug('Expected size: {}'.format(expected_size))
 
-        parse_line(line)
+    # Reset the address.
+    _address = 0
+
+    # Parse the rest.
+    for line in lines:
+        parse_line(line, False)
 
     insts = list(_instructions)
 
-    debug(insts_as_chr(insts))
-    debug(insts_as_bin(insts))
-    debug(insts)
+    # This probably shouldn't happen.
+    assert expected_size == len(insts)
+
+    # debug(insts_as_chr(insts))
+    # debug(insts_as_bin(insts))
+    # debug(insts)
 
     return insts
 
@@ -405,4 +500,4 @@ if __name__ == '__main__':
     if not sys.argv[1:]:
         debug('usage: {} path-to-source'.format(sys.argv[0]))
     else:
-        parse_file(sys.argv[1])
+        print parse_file(sys.argv[1])
