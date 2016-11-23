@@ -20,7 +20,7 @@ _address = 0
 _instructions = []
 
 
-# Resets the label/addr/insts state.
+# Reset the label/addr/insts state.
 def reset_all():
     global _labels, _address, _instructions
     _labels = {}
@@ -100,7 +100,7 @@ def add_data(label, data):
     add_raw(data)
 
 
-# Converts a string to a C string and adds it.
+# Convert a string to a C string and add it.
 def add_string(label, s):
     add_label(label)
     chars = map(ord, list(strip_quotes(s) + '\0'))
@@ -120,7 +120,7 @@ def parse_line(line, labels_only):
     global _address
 
     # Remove comments.
-    line = line.split(';')[0]
+    line = line.split(';')[0].split('/')[0]
 
     # Remove whitespace.
     line = line.strip()
@@ -182,7 +182,7 @@ def parse_line(line, labels_only):
         logging.debug('(Ignoring label on second pass.)')
         return
 
-    # Converts labels to their memory locations.
+    # Convert labels to their memory locations.
     if args:
         args = map(lambda s: conv_label(s), args)
 
