@@ -50,10 +50,8 @@ def conv_label(label):
 
 def maybe_parse_hex(value):
     if isinstance(value, str):
-        if value.startswith('0x'):
-            return int(value, 16)
-        else:
-            return int(value)
+        # base=0 => parse as literal.
+        return int(value, 0)
     return value
 
 
