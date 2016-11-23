@@ -5,7 +5,7 @@ herontitan is an assembler for bootnecklad's "Titan" processor.
 import sys
 import logging
 import argparse
-from opcodes import OPCODES, OPCODES_LEN
+from opcodes import OPCODES
 
 REGISTERS = [
     'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9',
@@ -28,6 +28,14 @@ def reset_all():
     _instructions = []
 
 
+def get_inst_opcode(mnem):
+    return OPCODES[mnem][0]
+
+
+def get_inst_length(mnem):
+    return OPCODES[mnem][1]
+
+
 def get_reg(r):
     try:
         return REGISTERS.index(r)
@@ -42,7 +50,7 @@ def add_label(label):
 
 
 def conv_label(label):
-    if _labels.has_key(label):
+    if label in _labels:
         logging.debug('Found label: %s => %s', label, _labels[label])
         return _labels[label]
     return label
@@ -167,8 +175,8 @@ def parse_line(line, labels_only):
             add_label(label)
             return
 
-        if mnem in OPCODES_LEN:
-            sz = OPCODES_LEN[mnem]
+        if mnem in OPCODES:
+            sz = get_inst_length(mnem)
             _address += sz
             return
 
@@ -188,19 +196,19 @@ def parse_line(line, labels_only):
 
     # (no args)
     if mnem in ['NOP', 'HLT', 'RSB', 'RTE']:
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         return
 
     if mnem == 'INT':
         byte = maybe_parse_hex(args[0])
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_byte(byte)
         return
 
     if mnem in ['ADD', 'ADC', 'SUB', 'AND', 'IOR', 'XOR', 'MOV']:
         rs = get_reg(args[0])
         rd = get_reg(args[1])
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rs, rd)
         return
 
@@ -208,28 +216,28 @@ def parse_line(line, labels_only):
         rs = get_reg(args[0])
         # Unused?
         rd = 0
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rs, rd)
         return
 
     if mnem in ['PSH', 'POP', 'PEK', 'PSR', 'PPR', 'PKR', 'CLR']:
         r = get_reg(args[0])
-        add_nibbles(OPCODES[mnem][0], r)
+        add_nibbles(get_inst_opcode(mnem), r)
         return
 
     if mnem == 'LDC':
         byte = maybe_parse_hex(args[0])
         rd = get_reg(args[1])
-        add_nibbles(OPCODES[mnem][0], rd)
+        add_nibbles(get_inst_opcode(mnem), rd)
         add_byte(byte)
         return
 
     if mnem in ['JMP', 'JMI', 'JMZ', 'JMS', 'JMC', 'JSR']:
-        short = maybe_parse_hex(args[0])
+        addr = maybe_parse_hex(args[0])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_byte(addrh)
         add_byte(addrl)
         return
@@ -237,30 +245,30 @@ def parse_line(line, labels_only):
     if mnem in ['JMR', 'JRA']:
         rh = get_reg(args[0])
         rl = get_reg(args[1])
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rh, rl)
         return
 
     if mnem == 'JMO':
         rh = get_reg(args[0])
         rl = get_reg(args[1])
-        short = maybe_parse_hex(args[2])
+        addr = maybe_parse_hex(args[2])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rh, rl)
         add_byte(addrh)
         add_byte(addrl)
         return
 
     if mnem == 'LDM':
-        short = maybe_parse_hex(args[0])
+        addr = maybe_parse_hex(args[0])
         rd = get_reg(args[1])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(0b0000, rd)
         add_byte(addrh)
         add_byte(addrl)
@@ -272,7 +280,7 @@ def parse_line(line, labels_only):
         rl = get_reg(args[1])
         rd = get_reg(args[2])
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(0b0000, rd)
         add_nibbles(rh, rl)
         return
@@ -281,12 +289,12 @@ def parse_line(line, labels_only):
     if mnem == 'LMO':
         rh = get_reg(args[0])
         rl = get_reg(args[1])
-        short = maybe_parse_hex(args[2])
+        addr = maybe_parse_hex(args[2])
         rd = get_reg(args[3])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(0b0000, rd)
         add_nibbles(rh, rl)
         add_byte(addrh)
@@ -295,11 +303,11 @@ def parse_line(line, labels_only):
 
     if mnem == 'STM':
         rs = get_reg(args[0])
-        short = maybe_parse_hex(args[1])
+        addr = maybe_parse_hex(args[1])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rs, 0b0000)
         add_byte(addrh)
         add_byte(addrl)
@@ -311,7 +319,7 @@ def parse_line(line, labels_only):
         rh = get_reg(args[1])
         rl = get_reg(args[2])
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rs, 0b0000)
         add_nibbles(rh, rl)
         return
@@ -321,11 +329,11 @@ def parse_line(line, labels_only):
         rs = get_reg(args[0])
         rh = get_reg(args[1])
         rl = get_reg(args[2])
-        short = maybe_parse_hex(args[3])
+        addr = maybe_parse_hex(args[3])
 
-        addrh, addrl = short_to_bytes(short)
+        addrh, addrl = short_to_bytes(addr)
 
-        add_nibbles(*OPCODES[mnem])
+        add_byte(get_inst_opcode(mnem))
         add_nibbles(rs, 0b0000)
         add_nibbles(rh, rl)
         add_byte(addrh)
